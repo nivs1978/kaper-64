@@ -11,25 +11,23 @@
 start:
         // Intro installs a RAM charset at $1000 after screen/color data has been copied.
 
-        jsr save_intro_bitmap
         lda #0
         sta skip_title_screen
         jmp start_setup
 
-// Entered after a game over: draw_map has overwritten the intro bitmap, so put
-// the stashed copy back and go straight to the intro instead of the title.
+// Entered after a game over: the intro is unpacked fresh each time it runs, so
+// only the title screen needs skipping.
 restart_game:
-        jsr restore_intro_bitmap
         lda #1
         sta skip_title_screen
 
 start_setup:
         jsr load_ship_sprites
-        lda #0
+        lda #<MAP_START_PIXEL_X
         sta ship_x
-        lda #12
+        lda #>MAP_START_PIXEL_X
         sta ship_x_hi
-        lda #72
+        lda #MAP_START_PIXEL_Y
         sta ship_y
 
         lda $dd00
@@ -83,6 +81,12 @@ done:
         // CHROUT clear can overwrite pointer bytes in the active screen's pointer table.
         jsr set_sprite_pointers_intro
 
+        lda #<NAME_SCREEN_SHIP_X
+        sta ship_x
+        lda #>NAME_SCREEN_SHIP_X
+        sta ship_x_hi
+        lda #NAME_SCREEN_SHIP_Y
+        sta ship_y
         jsr position_ship
         jsr show_ship
 
@@ -563,9 +567,172 @@ large_boarding_ship_4:
         .import source "harbour.inc"
         .import source "map.inc"
 
-// Intro picture linked straight into the PRG ($5c00 colour/screen, $6000 bitmap)
-// instead of a separate KERNAL LOAD, which cost ~20s at 1541 speed. The area is
-// scratch after the intro: draw_map overwrites $6000-$7f3f with the map bitmap.
-* = $5c00 "IntroBitmapData"
-        .import binary "intro.dat", 2
+// Intro picture, linked into the PRG instead of a separate KERNAL LOAD (which
+// cost ~20s at 1541 speed) and RLE-packed here at assembly time. It is unpacked
+// to $5c00/$6000 by decompress_intro_bitmap before every showing of the intro.
+// Format: token >= $80 -> run of (token & $7f) + 1 copies of the next byte;
+//         token <  $80 -> (token + 1) literal bytes follow.
+.var introRaw = LoadBinary("intro.dat")
+.var introPacked = List()
+.var introLits = List()
+.var introPos = 2                   // skip the file's 2-byte load address
+.while (introPos < introRaw.getSize()) {
+        .var value = introRaw.get(introPos) & 255
+        .var runLen = 1
+        .while (introPos + runLen < introRaw.getSize()
+                && (introRaw.get(introPos + runLen) & 255) == value
+                && runLen < 128) {
+                .eval runLen = runLen + 1
+        }
+        .if (runLen >= 3 || introLits.size() == 128) {
+                .if (introLits.size() > 0) {
+                        .eval introPacked.add(introLits.size() - 1)
+                        .for (var k = 0; k < introLits.size(); k++) {
+                                .eval introPacked.add(introLits.get(k))
+                        }
+                        .eval introLits = List()
+                }
+        }
+        .if (runLen >= 3) {
+                .eval introPacked.add($80 + runLen - 1)
+                .eval introPacked.add(value)
+                .eval introPos = introPos + runLen
+        } else {
+                .eval introLits.add(value)
+                .eval introPos = introPos + 1
+        }
+}
+.if (introLits.size() > 0) {
+        .eval introPacked.add(introLits.size() - 1)
+        .for (var k = 0; k < introLits.size(); k++) {
+                .eval introPacked.add(introLits.get(k))
+        }
+}
+
+// RLE-pack the original map payload using the same format as the intro image.
+.var mapRaw = LoadBinary("map.dat")
+.var mapPacked = List()
+.var mapLits = List()
+.var mapPos = 2
+.while (mapPos < mapRaw.getSize()) {
+        .var value = mapRaw.get(mapPos) & 255
+        .var runLen = 1
+        .while (mapPos + runLen < mapRaw.getSize()
+                && (mapRaw.get(mapPos + runLen) & 255) == value
+                && runLen < 128) {
+                .eval runLen = runLen + 1
+        }
+        .if (runLen >= 3 || mapLits.size() == 128) {
+                .if (mapLits.size() > 0) {
+                        .eval mapPacked.add(mapLits.size() - 1)
+                        .for (var k = 0; k < mapLits.size(); k++) {
+                                .eval mapPacked.add(mapLits.get(k))
+                        }
+                        .eval mapLits = List()
+                }
+        }
+        .if (runLen >= 3) {
+                .eval mapPacked.add($80 + runLen - 1)
+                .eval mapPacked.add(value)
+                .eval mapPos = mapPos + runLen
+        } else {
+                .eval mapLits.add(value)
+                .eval mapPos = mapPos + 1
+        }
+}
+.if (mapLits.size() > 0) {
+        .eval mapPacked.add(mapLits.size() - 1)
+        .for (var k = 0; k < mapLits.size(); k++) {
+                .eval mapPacked.add(mapLits.get(k))
+        }
+}
+
+.var mapBitmapRaw = LoadBinary("map.dat")
+.var mapBitmapPacked = List()
+.var mapBitmapLits = List()
+.var mapBitmapPos = 2
+.while (mapBitmapPos < 2 + 8000) {
+        .var value = mapBitmapRaw.get(mapBitmapPos) & 255
+        .var runLen = 1
+        .while (mapBitmapPos + runLen < 2 + 8000
+                && (mapBitmapRaw.get(mapBitmapPos + runLen) & 255) == value
+                && runLen < 128) {
+                .eval runLen = runLen + 1
+        }
+        .if (runLen >= 3 || mapBitmapLits.size() == 128) {
+                .if (mapBitmapLits.size() > 0) {
+                        .eval mapBitmapPacked.add(mapBitmapLits.size() - 1)
+                        .for (var k = 0; k < mapBitmapLits.size(); k++) {
+                                .eval mapBitmapPacked.add(mapBitmapLits.get(k))
+                        }
+                        .eval mapBitmapLits = List()
+                }
+        }
+        .if (runLen >= 3) {
+                .eval mapBitmapPacked.add($80 + runLen - 1)
+                .eval mapBitmapPacked.add(value)
+                .eval mapBitmapPos = mapBitmapPos + runLen
+        } else {
+                .eval mapBitmapLits.add(value)
+                .eval mapBitmapPos = mapBitmapPos + 1
+        }
+}
+.if (mapBitmapLits.size() > 0) {
+        .eval mapBitmapPacked.add(mapBitmapLits.size() - 1)
+        .for (var k = 0; k < mapBitmapLits.size(); k++) {
+                .eval mapBitmapPacked.add(mapBitmapLits.get(k))
+        }
+}
+
+.var mapScreenRaw = LoadBinary("map.dat")
+.var mapScreenPacked = List()
+.var mapScreenLits = List()
+.var mapScreenPos = 2 + 8000
+.while (mapScreenPos < 2 + 8000 + 1000) {
+        .var value = mapScreenRaw.get(mapScreenPos) & 255
+        .var runLen = 1
+        .while (mapScreenPos + runLen < 2 + 8000 + 1000
+                && (mapScreenRaw.get(mapScreenPos + runLen) & 255) == value
+                && runLen < 128) {
+                .eval runLen = runLen + 1
+        }
+        .if (runLen >= 3 || mapScreenLits.size() == 128) {
+                .if (mapScreenLits.size() > 0) {
+                        .eval mapScreenPacked.add(mapScreenLits.size() - 1)
+                        .for (var k = 0; k < mapScreenLits.size(); k++) {
+                                .eval mapScreenPacked.add(mapScreenLits.get(k))
+                        }
+                        .eval mapScreenLits = List()
+                }
+        }
+        .if (runLen >= 3) {
+                .eval mapScreenPacked.add($80 + runLen - 1)
+                .eval mapScreenPacked.add(value)
+                .eval mapScreenPos = mapScreenPos + runLen
+        } else {
+                .eval mapScreenLits.add(value)
+                .eval mapScreenPos = mapScreenPos + 1
+        }
+}
+.if (mapScreenLits.size() > 0) {
+        .eval mapScreenPacked.add(mapScreenLits.size() - 1)
+        .for (var k = 0; k < mapScreenLits.size(); k++) {
+                .eval mapScreenPacked.add(mapScreenLits.get(k))
+        }
+}
+
+// Sits in the RAM under the BASIC ROM, in the gap between MapArt and the
+// shooting screen data; decompress_intro_bitmap banks BASIC out to read it.
+.errorif (INTRO_PACKED_ADDR + introPacked.size() > $c000), "Packed intro data overruns $c000"
+* = INTRO_PACKED_ADDR "IntroBitmapPacked"
+intro_rle_data:
+        .fill introPacked.size(), introPacked.get(i)
+
+.errorif (MAP_PACKED_ADDR + mapBitmapPacked.size() + mapScreenPacked.size() > $b340), "Packed map data overruns under-BASIC RAM"
+* = $9000 "MapBitmapPacked"
+map_bitmap_rle_data:
+        .fill mapBitmapPacked.size(), mapBitmapPacked.get(i)
+* = $9000 + mapBitmapPacked.size() "MapScreenPacked"
+map_screen_rle_data:
+        .fill mapScreenPacked.size(), mapScreenPacked.get(i)
 

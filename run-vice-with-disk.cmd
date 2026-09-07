@@ -27,7 +27,7 @@ for %%A in (%*) do (
   if /i not "%%~xA"==".prg" set "ARGS=!ARGS! "%%~A""
 )
 
-"%VICE%"%ARGS% "%D64%"
+"%VICE%" -drive8type 1541 -8 "%D64%" -autostartprgmode 1 -autostart "%D64%"%ARGS%
 if errorlevel 1 (
   set "ERR=VICE failed to start. See messages above."
   goto :fail

@@ -13,6 +13,7 @@ run_intro:
         jsr $ffd2
         jsr configure_intro_vic_bank
         jsr prepare_intro_charset
+        jsr decompress_intro_bitmap
         jsr draw_intro_press_key
         jsr audio_init
         jsr enable_intro_bitmap_mode
@@ -46,47 +47,149 @@ intro_done:
         jsr show_vic_screen
         rts
 
-// The intro bitmap lives at $6000, which draw_map later overwrites with the map.
-// Stash a pristine copy in the RAM hidden under the KERNAL ROM so the intro can
-// be shown again after a game over. Writes to $e000-$ffff always land in RAM.
-save_intro_bitmap:
-        lda #<$6000
-        sta src_ptr
-        lda #>$6000
-        sta src_ptr+1
-        lda #<INTRO_BITMAP_STASH
-        sta dst_ptr
-        lda #>INTRO_BITMAP_STASH
-        sta dst_ptr+1
-        jmp copy_intro_bitmap_len
+// Relocated out of the sub-$4400 code segment into the free gap after the ship
+// sprite data; the routine is self-contained, so no branch crosses the boundary.
+intro_code_end:
+* = $8200 "RleUnpack"
 
-// Reading the stash needs the KERNAL banked out, so no interrupts may fire.
-restore_intro_bitmap:
+// Shared RLE expander for the packed intro and map images.
+// Caller sets src_ptr (packed data), dst_ptr (destination) and rle_end_lo/hi
+// (one past the last byte to write).
+// Token >= $80: run of (token & $7f) + 1 copies of the next byte.
+// Token <  $80: (token + 1) literal bytes follow.
+rle_unpack:
+        ldy #0
+        lda (src_ptr),y
+        jsr rle_next_src
+        tax
+        bmi rle_run
+        inx                         // literal count = token + 1
+rle_literal:
+        ldy #0
+        lda (src_ptr),y
+        sta (dst_ptr),y
+        jsr rle_next_src
+        jsr rle_next_dst
+        dex
+        bne rle_literal
+        beq rle_check_end           // always: dex left X at 0
+
+rle_run:
+        txa
+        and #$7f
+        tax
+        inx                         // run count = (token & $7f) + 1
+        ldy #0
+        lda (src_ptr),y             // repeated value, kept in A across the loop
+        jsr rle_next_src
+rle_run_store:
+        ldy #0
+        sta (dst_ptr),y
+        jsr rle_next_dst
+        dex
+        bne rle_run_store
+
+rle_check_end:
+        lda dst_ptr+1
+        cmp rle_end_hi
+        bne rle_unpack
+        lda dst_ptr
+        cmp rle_end_lo
+        bne rle_unpack
+        rts
+
+// Both must leave A untouched: the run loop keeps its fill byte there.
+rle_next_src:
+        inc src_ptr
+        bne rle_next_src_done
+        inc src_ptr+1
+rle_next_src_done:
+        rts
+
+rle_next_dst:
+        inc dst_ptr
+        bne rle_next_dst_done
+        inc dst_ptr+1
+rle_next_dst_done:
+        rts
+
+rle_end_lo: .byte 0
+rle_end_hi: .byte 0
+
+// The packed intro sits under the BASIC ROM, so bank it out while reading.
+decompress_intro_bitmap:
         sei
         lda $01
         pha
-        and #%11111101              // HIRAM off: RAM at $e000-$ffff, I/O still mapped
+        and #$fe
         sta $01
-        lda #<INTRO_BITMAP_STASH
+        lda #<intro_rle_data
         sta src_ptr
-        lda #>INTRO_BITMAP_STASH
+        lda #>intro_rle_data
         sta src_ptr+1
-        lda #<$6000
+        lda #<INTRO_BITMAP_SCREEN
         sta dst_ptr
-        lda #>$6000
+        lda #>INTRO_BITMAP_SCREEN
         sta dst_ptr+1
-        jsr copy_intro_bitmap_len
+        lda #<INTRO_BITMAP_END
+        sta rle_end_lo
+        lda #>INTRO_BITMAP_END
+        sta rle_end_hi
+        jsr rle_unpack
         pla
         sta $01
         cli
         rts
 
-copy_intro_bitmap_len:
-        lda #<$1f40
-        sta len_lo
-        lda #>$1f40
-        sta len_hi
-        jmp copy_len_bytes
+decompress_map_bitmap:
+        sei
+        lda $01
+        pha
+        and #$fe
+        sta $01
+        lda #<map_bitmap_rle_data
+        sta src_ptr
+        lda #>map_bitmap_rle_data
+        sta src_ptr+1
+        lda #<MAP_BITMAP_ADDR
+        sta dst_ptr
+        lda #>MAP_BITMAP_ADDR
+        sta dst_ptr+1
+        lda #<MAP_BITMAP_END
+        sta rle_end_lo
+        lda #>MAP_BITMAP_END
+        sta rle_end_hi
+        jsr rle_unpack
+        pla
+        sta $01
+        cli
+        rts
+
+decompress_map_screen:
+        sei
+        lda $01
+        pha
+        and #$fe
+        sta $01
+        lda #<map_screen_rle_data
+        sta src_ptr
+        lda #>map_screen_rle_data
+        sta src_ptr+1
+        lda #<INTRO_SCREEN_RAM
+        sta dst_ptr
+        lda #>INTRO_SCREEN_RAM
+        sta dst_ptr+1
+        lda #<MAP_SCREEN_END
+        sta rle_end_lo
+        lda #>MAP_SCREEN_END
+        sta rle_end_hi
+        jsr rle_unpack
+        pla
+        sta $01
+        cli
+        rts
+
+* = intro_code_end
 
 // Draws the prompt into the intro hires bitmap's bottom-left character row.
 // draw_bmp_char writes its colour byte to the $4400 screen, so the colour cells

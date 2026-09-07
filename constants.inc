@@ -7,14 +7,18 @@
 .const VIC_D018_INTRO = $12     // screen $4400, charset $4800 (bank 1)
 .const INTRO_BITMAP_D018 = $78  // screen $5c00, bitmap $6000 (bank 1)
 .const INTRO_BITMAP_SCREEN = $5c00
-// Pristine copy of the intro bitmap, kept in the RAM under the KERNAL ROM.
-.const INTRO_BITMAP_STASH = $e000
+.const INTRO_BITMAP_END = $7f40    // one past the last unpacked byte
+.const MAP_PACKED_ADDR = $a000     // packed map bitmap/screen data under the BASIC ROM
+.const INTRO_PACKED_ADDR = $b340   // RLE-packed intro, under the BASIC ROM after MapArt
 
 .const KERNAL_SCREEN_PAGE_ADDR = $0288
 .const KERNAL_SCREEN_PAGE_MAIN = $04
 .const KERNAL_SCREEN_PAGE_INTRO = $44
 
 .const INTRO_SCREEN_RAM = $4400
+.const MAP_BITMAP_ADDR = $6000
+.const MAP_BITMAP_END = $7f40
+.const MAP_SCREEN_END = INTRO_SCREEN_RAM + $03e8
 // NOTE: charset must stay below $6000 - the map bitmap destination spans
 // $6000-$7f3f and draw_map would overwrite anything placed inside it.
 .const INTRO_CHARSET_RAM = $4800
@@ -99,6 +103,8 @@
 .const MAP_GRID_ORIGIN_Y = 59
 .const MAP_START_PIXEL_X = 125
 .const MAP_START_PIXEL_Y = 149
+.const NAME_SCREEN_SHIP_X = 210
+.const NAME_SCREEN_SHIP_Y = 72
 .const MAP_PIXEL_MIN_X = MAP_GRID_ORIGIN_X + ((MAP_GRID_COL_MIN - 1) * MAP_GRID_STEP)
 .const MAP_PIXEL_MAX_X = MAP_GRID_ORIGIN_X + ((MAP_GRID_COL_MAX - 1) * MAP_GRID_STEP)
 .const MAP_PIXEL_MIN_Y = MAP_GRID_ORIGIN_Y + ((MAP_GRID_ROW_MIN - 1) * MAP_GRID_STEP)
