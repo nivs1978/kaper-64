@@ -27,12 +27,13 @@ To create the disk image and run the game in VICE, use:
   (`pstr`, `pstrnl`, `pnum`, `astr`, `wstr`, `bstr`, `bnum`, `fnum`).
 - `audio.inc` contains the SID player and the tune/sound-effect data.
 - `start.inc` contains the title screen shown before the intro.
-- `intro.inc` contains the intro screen, the intro bitmap stash/restore, text-screen
+- `intro.inc` contains the intro screen, the RLE unpacker for the intro bitmap, text-screen
   setup, VIC bank switching, the gameplay sound effects, and shared display helpers.
-- `intro.dat` is the hires intro bitmap. It is linked straight into the program at
-  assembly time (load address `$5c00`: 1000 bytes of screen colour data, 24 pad bytes,
-  then the 8000-byte bitmap at `$6000`), so it is no longer loaded from disk.
-  It is converted from `intro.art` (OCP Art Studio hires) in the `Kaper64 BASIC\intro` folder.
+- `intro.dat` is the hires intro bitmap (load address `$5c00`: 1000 bytes of screen colour
+  data, 24 pad bytes, then the 8000-byte bitmap at `$6000`). Kick Assembler RLE-packs it at
+  build time (9024 -> 3157 bytes) into `intro_rle_data`, so it is neither loaded from disk
+  nor stored uncompressed. It is converted from `intro.art` (OCP Art Studio hires) in the
+  `Kaper64 BASIC\intro` folder.
 - `shooting.inc` contains the cannon-battle minigame and shooting screen data.
 - `harbour_sailing.inc` contains the harbour-approach minigame.
 - `harbour.inc` contains harbour trading and resource management.
@@ -42,10 +43,10 @@ To create the disk image and run the game in VICE, use:
 
 
 ## Memory Layout
-- The intro uses a 320x200 hires bitmap embedded in the program (screen `$5c00`, bitmap `$6000`).
-- `draw_map` overwrites `$6000-$7f3f` with the map, so a pristine copy of the intro
-  bitmap is stashed in the RAM under the KERNAL ROM at `$e000` and restored when the
-  intro is shown again after a game over.
+- The intro uses a 320x200 hires bitmap stored RLE-packed at `$b340` (in the RAM under
+  the BASIC ROM) and unpacked to screen `$5c00` / bitmap `$6000` before each showing.
+- `draw_map` reuses `$6000-$7f3f` for the map bitmap, which is why the intro is unpacked
+  again rather than kept around when it is shown after a game over.
 - The map uses a high-resolution bitmap with screen/color data in VIC bank 1.
 - Program code must stay below `$4400` (VIC bank 1 screen RAM); the name-entry screen
   prints the remaining headroom as a build-time diagnostic.
