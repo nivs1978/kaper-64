@@ -1820,6 +1820,7 @@ victory_final_win:
         pstrnl(victory_final_line_1)
         pstrnl(victory_final_line_2)
         jsr print_noble_title_and_name
+        jsr check_new_highscore
         jsr sound_promotion
         jsr show_press_any_key
         jmp return_to_basic
@@ -1988,6 +1989,7 @@ end_game_no_cause:
         pnum(ship_repair_points)
         pstrnl(end_rep_point_msg)
 end_game_restart:
+        jsr check_new_highscore
         lda #0
         sta $c6                     // drop keys buffered during the fight
         jsr show_press_any_key

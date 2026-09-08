@@ -13,6 +13,7 @@ start:
 
         lda #0
         sta skip_title_screen
+        jsr load_highscore
         jmp start_setup
 
 // Entered after a game over: the intro is unpacked fresh each time it runs, so
@@ -84,9 +85,12 @@ done:
 
         lda #0
         sta $cc         // enable cursor blink
-        ldx #0
+        // GETIN and CHROUT both destroy X, so the running index lives in memory
+        // and is reloaded each pass - held in X it was reset on every keypress.
+        sta namebuf_len
 inloop: jsr $ffe4
         beq inloop
+        ldx namebuf_len
         cmp #13
         beq indone
         cmp #20         // DEL
@@ -95,11 +99,13 @@ inloop: jsr $ffe4
         bcs inloop
         sta namebuf,x
         inx
+        stx namebuf_len
         jsr $ffd2
         jmp inloop
 indel:  cpx #0
         beq inloop
         dex
+        stx namebuf_len
         lda #20
         jsr $ffd2
         jmp inloop
@@ -438,6 +444,7 @@ hvadstr: .text "HVAD ER DIT NAVN? "
 kaperstr:.text "KAPER"
          .byte 0
 namebuf: .byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+namebuf_len: .byte 0
 skip_title_screen: .byte 0
 ship_x:  .byte 0
 ship_x_hi:.byte 12
@@ -464,6 +471,18 @@ pending_prize_rigsdaler_hi:  .byte 0
 // BASIC line 102: IPOINTLIM = IPOINT!+500+250*IDIF, ITURLIM = ITUR+325-12.5*IDIF (IDIF=2 at start)
 point_limit:        .word 1000
 turn_limit:         .word 300
+
+// Persisted record (BASIC "rec.dat", lines 42-45 and 1800-1809). Saved to and
+// loaded from disk as one contiguous block: 16-bit score followed by a
+// zero-terminated name of at most 16 characters.
+highscore_data:
+highscore_value:    .word 0
+highscore_name:     .text "JOHAN N. HOLM"
+highscore_name_text_end:
+                    // Pad to a fixed 17-byte field so the block stays 19 bytes
+                    // however long the default name is.
+                    .fill 17 - (highscore_name_text_end - highscore_name), 0
+highscore_data_end:
 
 kaper_code_end:
 // Pure sprite data, relocated into the $8000-$87ff gap freed when the PETSCII
