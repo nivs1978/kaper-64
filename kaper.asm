@@ -68,16 +68,6 @@ done:
         pstr(askstr)
         jsr print_double_newline
 
-        // Build-time diagnostic: bytes still free before code would reach into
-        // $4400 (VIC bank 1 screen RAM), so an overlap regression is easy to spot.
-        pstr(freememstr)
-        lda #<($4400 - code_segment_end)
-        sta num_print_lo
-        lda #>($4400 - code_segment_end)
-        sta num_print_hi
-        jsr print_inline_word_decimal
-        jsr print_double_newline
-
         // CHROUT clear can overwrite pointer bytes in the active screen's pointer table.
         jsr set_sprite_pointers_intro
 
@@ -442,8 +432,6 @@ hide_ship:
 
 askstr:  .byte 17
          .text "S]DAN SER DIT SKIB UD:"
-         .byte 0
-freememstr:.text "FRI HUKOMMELSE F\R KODE:"
          .byte 0
 hvadstr: .text "HVAD ER DIT NAVN? "
          .byte 0
