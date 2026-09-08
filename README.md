@@ -11,6 +11,7 @@ The project uses Kick Assembler. From PowerShell, build the program with:
 
 ```powershell
 java -jar C:\apps\KickAssembler\KickAss.jar .\kaper.asm -o .\bin\kaper.prg
+java -jar C:\apps\KickAssembler\KickAss.jar .\hjaelp.asm -o .\bin\hjaelp.prg
 ```
 
 To create the disk image and run the game in VICE, use:
@@ -22,6 +23,8 @@ To create the disk image and run the game in VICE, use:
 ## Modules
 - `kaper.asm` is the main entry point, holds the global player state, the name-entry
   screen, and imports the program modules.
+- `hjaelp.asm` is the independent, menu-driven help application. It contains all help
+  topics and reuses the cannon-fight illustration without loading the main game.
 - `constants.inc` contains shared memory addresses, VIC configuration, gameplay
   constants, the shared zero-page pointers, and the inline-argument print macros
   (`pstr`, `pstrnl`, `pnum`, `astr`, `wstr`, `bstr`, `bnum`, `fnum`).
@@ -35,6 +38,8 @@ To create the disk image and run the game in VICE, use:
   nor stored uncompressed. It is converted from `intro.art` (OCP Art Studio hires) in the
   `Kaper64 BASIC\intro` folder.
 - `shooting.inc` contains the cannon-battle minigame and shooting screen data.
+- `shooting_screen_data.inc` contains the shooting screen/color artwork shared by the
+  main game and the standalone help application.
 - `harbour_sailing.inc` contains the harbour-approach minigame.
 - `harbour.inc` contains harbour trading and resource management.
 - `map.inc` contains map movement, random events, boarding combat, the end-game and
