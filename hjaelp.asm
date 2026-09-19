@@ -55,7 +55,7 @@
                 lda help_topic_hi,x
                 sta src_ptr+1
                 jsr clear_help_screen
-                jsr show_help_topic
+                jsr show_help_next
                 jmp help_menu
 
         leave_help:
@@ -84,9 +84,8 @@
                 jsr $ffd2
                 jmp $a474
 
-        show_help_topic:
-                ldy #0
         show_help_next:
+                ldy #0 // reset each pass: print_zero_terminated/show_shooting_help leave y dirty
                 lda (src_ptr),y
                 beq show_help_done
                 jsr advance_src_ptr
